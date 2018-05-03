@@ -4,19 +4,7 @@ import java.util
 
 import cats.syntax.monoid._
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
-import com.wavesplatform.state.{
-  AccountDataInfo,
-  AssetDescription,
-  AssetInfo,
-  Blockchain,
-  ByteStr,
-  Diff,
-  LeaseBalance,
-  Portfolio,
-  Sponsorship,
-  SponsorshipValue,
-  VolumeAndFee
-}
+import com.wavesplatform.state._
 import scorex.account.{Address, Alias}
 import scorex.block.Block
 import scorex.transaction.assets.IssueTransaction
@@ -106,6 +94,35 @@ trait Caches extends Blockchain {
                          aliases: Map[Alias, BigInt],
                          sponsorship: Map[AssetId, Sponsorship]): Unit
 
+  private def tracePortfolio(portfolios: Map[Address, Portfolio]): Unit = {
+    if (wavesBalanceTrace.logger.isTraceEnabled) {
+      val balanceLines = for {
+        (address, p) <- portfolios
+        if p.balance != 0
+      } yield s"$address ${addressIdCache.get(address).get}: ${p.balance}"
+
+      if (balanceLines.nonEmpty) wavesBalanceTrace.trace(s"Waves balance changes at $heightCache:\n${balanceLines.mkString("\n")}")
+    }
+
+    if (assetBalanceTrace.logger.isTraceEnabled) {
+      val assetBalanceLines = for {
+        (address, p) <- portfolios
+        (assetId, b) <- p.assets
+        if b != 0
+      } yield s"$address ${addressIdCache.get(address).get} $assetId: ${p.balance}"
+
+      if (assetBalanceLines.nonEmpty) assetBalanceTrace.trace(s"Asset balance changes at $heightCache:\n${assetBalanceLines.mkString("\n")}")
+    }
+  }
+
+  private def traceFills(fills: Map[ByteStr, VolumeAndFee]): Unit = if (filledVolumeAndFeeTrace.logger.isTraceEnabled) {
+    val fi = for {
+      (orderId, vf) <- fills
+    } yield s"$orderId: ${vf.volume},${vf.fee}"
+
+    if (fi.nonEmpty) filledVolumeAndFeeTrace.trace(s"Filled volume and fee:\n${fi.mkString("\n")}")
+  }
+
   override def append(diff: Diff, block: Block): Unit = {
     heightCache += 1
     scoreCache += block.blockScore()
@@ -128,6 +145,9 @@ trait Caches extends Blockchain {
     lastAddressId += newAddressIds.size
 
     transactionIds.entrySet().removeIf(kv => block.timestamp - kv.getValue > 2 * 60 * 60 * 1000)
+
+    tracePortfolio(diff.portfolios)
+    traceFills(diff.orderFills)
 
     val wavesBalances = Map.newBuilder[BigInt, Long]
     val assetBalances = Map.newBuilder[BigInt, Map[ByteStr, Long]]

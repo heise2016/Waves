@@ -2,15 +2,21 @@ package com.wavesplatform
 
 import java.nio.ByteBuffer
 
+import com.google.common.base.Charsets.UTF_8
 import com.google.common.io.ByteStreams.{newDataInput, newDataOutput}
 import com.google.common.io.{ByteArrayDataInput, ByteArrayDataOutput}
 import com.google.common.primitives.{Ints, Shorts}
 import com.wavesplatform.state._
+import org.slf4j.LoggerFactory
 import scorex.transaction.smart.script.{Script, ScriptReader}
-import com.google.common.base.Charsets.UTF_8
 import scorex.transaction.{Transaction, TransactionParsers}
+import scorex.utils.LoggerFacade
 
 package object database {
+  private[database] val wavesBalanceTrace       = LoggerFacade(LoggerFactory.getLogger("state.trace.waves"))
+  private[database] val assetBalanceTrace       = LoggerFacade(LoggerFactory.getLogger("state.trace.assets"))
+  private[database] val filledVolumeAndFeeTrace = LoggerFacade(LoggerFactory.getLogger("state.trace.fills"))
+
   implicit class ByteArrayDataOutputExt(val output: ByteArrayDataOutput) extends AnyVal {
     def writeBigInt(v: BigInt): Unit = {
       val b = v.toByteArray

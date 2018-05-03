@@ -188,6 +188,29 @@ class LevelDBWriter(writableDB: DB, fs: FunctionalitySettings) extends Caches wi
     c2.drop(1).map(kf(_).keyBytes)
   }
 
+  private def traceWavesBalances(portfolios: Map[BigInt, Long]): Unit = if (wavesBalanceTrace.logger.isTraceEnabled) {
+    val balanceLines = for {
+      (address, p) <- portfolios
+    } yield s"$address: $p"
+
+    wavesBalanceTrace.trace(s"Waves balances at $height:\n${balanceLines.mkString("\n")}")
+  }
+
+  private def traceAssetBalances(assets: Map[BigInt, Map[ByteStr, Long]]): Unit = if (assetBalanceTrace.logger.isTraceEnabled) {
+    val assetBalances = for {
+      (addressId, assets) <- assets
+      (assetId, v)        <- assets
+    } yield s"$addressId $assetId: $v"
+    assetBalanceTrace.trace(s"Asset balances at $height:\n${assetBalances.mkString("\n")}")
+  }
+
+  private def traceFilledQuantity(filledVolumeAndFee: Map[ByteStr, VolumeAndFee]): Unit = if (filledVolumeAndFeeTrace.logger.isTraceEnabled) {
+    val fq = for {
+      (orderId, fv) <- filledVolumeAndFee
+    } yield s"$orderId: ${fv.volume},${fv.fee}"
+    filledVolumeAndFeeTrace.trace(s"Order fills at $height:\n${fq.mkString("\n")}")
+  }
+
   override protected def doAppend(block: Block,
                                   newAddresses: Map[Address, BigInt],
                                   wavesBalances: Map[BigInt, Long],
@@ -208,6 +231,10 @@ class LevelDBWriter(writableDB: DB, fs: FunctionalitySettings) extends Caches wi
     rw.put(Keys.heightOf(block.uniqueId), Some(height))
     rw.put(Keys.lastAddressId, Some(loadMaxAddressId() + newAddresses.size))
     rw.put(Keys.score(height), rw.get(Keys.score(height - 1)) + block.blockScore())
+
+    traceWavesBalances(wavesBalances)
+    traceAssetBalances(assetBalances)
+    traceFilledQuantity(filledQuantity)
 
     for ((address, id) <- newAddresses) {
       rw.put(Keys.addressId(address), Some(id))
