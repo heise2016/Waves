@@ -56,4 +56,24 @@ class TransactionBindingsTest extends PropSpec with PropertyChecks with Matchers
     }
   }
 
+  property("IssueTransaction binding") {
+    forAll(issueGen) { t =>
+      val result = runScript[Boolean](
+        s"""
+          |match tx {
+          | case t : IssueTransaction  =>
+          |   ${provenPart(t)}
+          |   let quantity = t.quantity == ${t.quantity}
+          |   let decimals = t.decimals == ${t.decimals}
+          |   let reissuable = t.reissuable == ${t.reissuable}
+          |   $assertProvenPart && quantity && reissuable && decimals
+          | case other => throw
+          | 
+          |""".stripMargin,
+        t
+      )
+      result shouldBe Right(true)
+    }
+  }
+
 }
